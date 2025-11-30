@@ -1,0 +1,25 @@
+Script started on 2025-11-30 17:54:48+08:00 [TERM="xterm-256color" TTY="/dev/pts/2" COLUMNS="80" LINES="24"]
+[?2004h]0;test@codeby: ~[01;32mtest@codeby[00m:[01;34m~[00m$ s[Kjava version-version
+[?2004lopenjdk version "25.0.1" 2025-10-21
+OpenJDK Runtime Environment (build 25.0.1+8-27)
+OpenJDK 64-Bit Server VM (build 25.0.1+8-27, mixed mode, sharing)
+[?2004h]0;test@codeby: ~[01;32mtest@codeby[00m:[01;34m~[00m$ sudo update-alternatives --confo[Kig java
+[?2004l[sudo] password for test: 
+There are 2 choices for the alternative java (providing /usr/bin/java).
+
+  Selection    Path                                         Priority   Status
+------------------------------------------------------------
+  0            /usr/lib/jvm/java-17-openjdk-amd64/bin/java   1711      auto mode
+* 1            /home/test/java/jdk-25.0.1/bin/java           1         manual mode
+  2            /usr/lib/jvm/java-17-openjdk-amd64/bin/java   1711      manual mode
+
+Press <enter> to keep the current choice[*], or type selection number: 2
+update-alternatives: using /usr/lib/jvm/java-17-openjdk-amd64/bin/java to provide /usr/bin/java (java) in manual mode
+[?2004h]0;test@codeby: ~[01;32mtest@codeby[00m:[01;34m~[00m$ java 0[K-version
+[?2004lopenjdk version "17.0.17" 2025-10-21
+OpenJDK Runtime Environment (build 17.0.17+10-Ubuntu-124.04)
+OpenJDK 64-Bit Server VM (build 17.0.17+10-Ubuntu-124.04, mixed mode, sharing)
+[?2004h]0;test@codeby: ~[01;32mtest@codeby[00m:[01;34m~[00m$ [?2004l
+exit
+
+Script done on 2025-11-30 17:55:33+08:00 [COMMAND_EXIT_CODE="0"]
