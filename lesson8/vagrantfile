@@ -1,0 +1,109 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+DOMAIN = "codeby.local"
+WWW_DOMAIN = "www.#{DOMAIN}"
+IP_SERVER = "192.168.22.36"
+IP_CLIENT = "192.168.22.37"
+
+Vagrant.configure("2") do |config|
+
+  config.vm.box = "ubuntu/bionic64"
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "1024"
+    vb.cpus = 1
+  end
+
+  config.vm.define "server" do |server|
+    server.vm.hostname = "server"
+    server.vm.network "private_network", ip: IP_SERVER
+
+    server.vm.provision "shell", inline: <<-SHELL
+      set -e
+
+      DOMAIN="#{DOMAIN}"
+      WWW_DOMAIN="#{WWW_DOMAIN}"
+
+      apt update && apt upgrade -y
+      apt install -y apache2 openssl
+      a2enmod ssl rewrite headers
+
+      mkdir -p /etc/ssl/private
+      openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout /etc/ssl/private/$DOMAIN.key \
+        -out /etc/ssl/certs/$DOMAIN.crt \
+        -subj "/C=RU/ST=Moscow/L=Moscow/O=Test/CN=$DOMAIN" \
+        -addext "subjectAltName=DNS:$DOMAIN,DNS:$WWW_DOMAIN"
+
+      cp /etc/ssl/certs/$DOMAIN.crt /vagrant/$DOMAIN.crt
+
+      cat > /etc/apache2/sites-available/$DOMAIN.conf <<EOF
+<VirtualHost *:80>
+    ServerName $DOMAIN
+    ServerAlias $WWW_DOMAIN
+    Redirect permanent / https://$DOMAIN/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName $DOMAIN
+    ServerAlias $WWW_DOMAIN
+    DocumentRoot /var/www/html
+
+    SSLEngine on
+    SSLCertificateFile    /etc/ssl/certs/$DOMAIN.crt
+    SSLCertificateKeyFile /etc/ssl/private/$DOMAIN.key
+
+    RewriteEngine On
+    RewriteCond %{HTTP_HOST} ^www\\.#{DOMAIN.gsub('.', '\\.')} [NC]
+    RewriteRule ^(.*)$ https://$DOMAIN\$1 [R=301,L]
+
+    ErrorLog \${APACHE_LOG_DIR}/$DOMAIN-error.log
+    CustomLog \${APACHE_LOG_DIR}/$DOMAIN-access.log combined
+</VirtualHost>
+EOF
+
+      a2dissite 000-default.conf || true
+      a2ensite $DOMAIN.conf
+      systemctl restart apache2
+    SHELL
+  end
+
+  config.vm.define "client" do |client|
+    client.vm.hostname = "client"
+    client.vm.network "private_network", ip: IP_CLIENT
+
+    client.vm.provision "shell", inline: <<-SHELL
+      set -e
+
+      DOMAIN="#{DOMAIN}"
+      WWW_DOMAIN="#{WWW_DOMAIN}"
+      SERVER_IP="#{IP_SERVER}"
+
+      grep -q "$DOMAIN" /etc/hosts || echo "$SERVER_IP $DOMAIN $WWW_DOMAIN" >> /etc/hosts
+      sed -i "/$DOMAIN/d" /etc/hosts
+      echo "$SERVER_IP $DOMAIN $WWW_DOMAIN" >> /etc/hosts
+
+      if [ -f /vagrant/$DOMAIN.crt ]; then
+        cp /vagrant/$DOMAIN.crt /usr/local/share/ca-certificates/$DOMAIN.crt
+        update-ca-certificates
+        echo "Сертификат $DOMAIN добавлен в доверенные"
+      else
+        echo "ОШИБКА: файл /vagrant/$DOMAIN.crt не найден!"
+        exit 1
+      fi
+
+      echo "=== Резолв имен ==="
+      ping -c 2 $DOMAIN
+      ping -c 2 $WWW_DOMAIN
+
+      echo "=== HTTP → HTTPS ==="
+      curl -I -L --insecure http://$DOMAIN
+
+      echo "=== HTTPS (должен быть без ошибок сертификата) ==="
+      curl -I https://$DOMAIN
+
+      echo "=== www → non-www (301) ==="
+      curl -I -L https://$WWW_DOMAIN
+    SHELL
+  end
+ end
