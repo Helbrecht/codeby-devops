@@ -1,0 +1,25 @@
+# lesson12/ansible/playbooks/test.yml
+---
+- name: Настройка серверов (dev и prod)
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Убедимся, что нужные пакеты установлены
+      apt:
+        name:
+          - wget
+          - htop
+          - nginx
+        state: present
+        update_cache: yes
+
+    - name: Запуск и включение nginx
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Выводим, в каком окружении мы находимся
+      debug:
+        msg: "This host is in {{ my_env }} environment"
