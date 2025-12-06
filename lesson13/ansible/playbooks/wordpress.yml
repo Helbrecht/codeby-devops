@@ -1,0 +1,7 @@
+---
+- name: Deploy WordPress with MySQL and Apache
+  hosts: wordpress
+  become: yes
+  roles:
+    - mysql
+    - apache
