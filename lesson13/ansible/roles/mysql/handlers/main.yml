@@ -1,0 +1,10 @@
+---
+- name: restart mysql
+  service:
+    name: "{{ 'mariadb' if ansible_os_family == 'RedHat' else 'mysql' }}"
+    state: restarted
+
+- name: restart mariadb
+  service:
+    name: mariadb
+    state: restarted

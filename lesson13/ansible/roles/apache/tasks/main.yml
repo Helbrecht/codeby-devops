@@ -1,0 +1,167 @@
+- name: Disable SELinux permanently and now
+  ansible.builtin.command: setenforce 0
+  ignore_errors: yes
+  when: ansible_os_family == "RedHat"
+
+- name: Disable SELinux in config
+  ansible.builtin.replace:
+    path: /etc/selinux/config
+    regexp: '^SELINUX=.*'
+    replace: 'SELINUX=disable'
+  when: ansible_os_family == "RedHat"
+
+
+- name: Stop and disable systemd-resolved (Ubuntu)
+  systemd:
+    name: systemd-resolved
+    state: stopped
+    enabled: false
+  when: ansible_distribution == "Ubuntu"
+
+- name: Fix resolv.conf (Ubuntu)
+  copy:
+    content: |
+      nameserver 8.8.8.8
+      nameserver 8.8.4.4
+    dest: /etc/resolv.conf
+    mode: '0644'
+  when: ansible_distribution == "Ubuntu"
+
+- name: Install Apache + PHP (Ubuntu)
+  apt:
+    name:
+      - apache2
+      - php
+      - libapache2-mod-php
+      - php-mysql
+      - php-gd
+    state: present
+    update_cache: yes
+  when: ansible_distribution == "Ubuntu"
+
+- name: Install Apache + PHP (CentOS/RHEL)
+  yum:
+    name:
+      - httpd
+      - php
+      - php-mysqlnd
+      - php-gd
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Set OS-specific paths
+  set_fact:
+    apache_log_dir: "{{ '/var/log/apache2' if ansible_distribution == 'Ubuntu' else '/var/log/httpd' }}"
+    apache_user: "{{ 'www-data' if ansible_distribution == 'Ubuntu' else 'apache' }}"
+    apache_group: "{{ 'www-data' if ansible_distribution == 'Ubuntu' else 'apache' }}"
+    apache_service: "{{ 'apache2' if ansible_distribution == 'Ubuntu' else 'httpd' }}"
+
+- name: Create log directory
+  file:
+    path: "{{ apache_log_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create document root
+  file:
+    path: /var/www/wordpress
+    state: directory
+    owner: "{{ apache_user }}"
+    group: "{{ apache_group }}"
+    mode: '0755'
+
+- name: Set global ServerName
+  lineinfile:
+    path: "{{ '/etc/apache2/apache2.conf' if ansible_distribution == 'Ubuntu' else '/etc/httpd/conf/httpd.conf' }}"
+    regexp: '^ServerName'
+    line: 'ServerName localhost'
+    state: present
+  notify: restart apache
+
+- name: Listen on custom port (Ubuntu)
+  lineinfile:
+    path: /etc/apache2/ports.conf
+    regexp: '^Listen '
+    line: "Listen {{ apache_port }}"
+    state: present
+  when: ansible_distribution == "Ubuntu"
+  notify: restart apache
+
+- name: Deploy WordPress virtual host
+  template:
+    src: wordpress.conf.j2
+    dest: >-
+      {{ '/etc/apache2/sites-available/wordpress.conf' if ansible_distribution == 'Ubuntu'
+         else '/etc/httpd/conf.d/wordpress.conf' }}
+    mode: '0644'
+  notify: restart apache
+
+- name: Enable site + rewrite + disable default (Ubuntu)
+  shell: |
+    a2ensite wordpress
+    a2dissite 000-default || true
+    a2enmod rewrite
+  when: ansible_distribution == "Ubuntu"
+  notify: restart apache
+
+
+- name: Ensure Apache is running
+  service:
+    name: "{{ apache_service }}"
+    state: started
+    enabled: true
+
+- name: Download and unpack latest WordPress correctly
+  ansible.builtin.unarchive:
+    src: https://wordpress.org/latest.tar.gz
+    dest: /var/www/wordpress
+    remote_src: yes
+    owner: "{{ apache_user }}"
+    group: "{{ apache_group }}"
+    creates: /var/www/wordpress/wp-config.php
+    #creates: /var/www/wordpress/wp-config-sample.php
+    mode: "0644"
+  notify: restart apache
+
+- name: Fix permissions
+  file:
+    path: /var/www/wordpress
+    state: directory
+    owner: "{{ apache_user }}"
+    group: "{{ apache_group }}"
+    mode: '0755'
+    recurse: yes
+
+#- name: Copy wp-config-sample.php → wp-config.php (если ещё нет)
+#  copy:
+#    src: /var/www/wordpress/wp-config-sample.php
+ #   dest: /var/www/wordpress/wp-config.php
+  #  remote_src: yes
+   # owner: "{{ apache_user }}"
+    #group: "{{ apache_group }}"
+   # mode: '0644'
+   # force: no
+ # notify: restart apache
+
+- name: Insert DB settings into wp-config.php
+  replace:
+    path: /var/www/wordpress/wp-config.php
+    regexp: "{{ item.from }}"
+    replace: "{{ item.to }}"
+  loop:
+    - { from: "database_name_here", to: "wordpress" }
+    - { from: "username_here", to: "wordpress" }
+    - { from: "password_here", to: "codeby" }
+    - { from: "'localhost'", to: "'127.0.0.1'" }
+  when: ansible_facts.files['/var/www/wordpress/wp-config.php'].size is defined
+  notify: restart apache
+
+- name: Fix DB_HOST for CentOS — localhost ≠ 127.0.0.1
+  ansible.builtin.replace:
+    path: /var/www/wordpress/wp-config.php
+    regexp: ^\s*define\(\s*['"]DB_HOST['"],\s*['"]localhost['"]\s*\);
+    replace: "define('DB_HOST', '127.0.0.1');"
+  when: ansible_os_family == "RedHat"
+  notify: restart apache

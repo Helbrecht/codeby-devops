@@ -1,0 +1,80 @@
+- name: Install MariaDB + client (Ubuntu)
+  apt:
+    name: [mariadb-server, mariadb-client, python3-pymysql]
+    state: present
+    update_cache: yes
+  when: ansible_distribution == "Ubuntu"
+
+- name: Install MariaDB + client (CentOS/RHEL)
+  block:
+    - name: Install EPEL (для PyMySQL)
+      yum: { name: epel-release, state: present }
+      when: ansible_distribution_major_version is version('8', '>=')
+    - name: Install MariaDB and PyMySQL
+      yum: { name: [mariadb-server, python3-PyMySQL], state: present }
+  when: ansible_os_family == "RedHat"
+
+- name: Start and enable MariaDB
+  service:
+    name: mariadb
+    state: started
+    enabled: yes
+
+- name: Wait for MariaDB
+  wait_for:
+    port: 3306
+    delay: 3
+
+- name: Create /root/.my.cnf
+  copy:
+    content: |
+      [client]
+      user = root
+      password = "{{ mysql_root_password }}"
+    dest: /root/.my.cnf
+    mode: '0600'
+
+- name: Open port 3306 via firewalld (CentOS) — ignore if not running
+  firewalld:
+    port: 3306/tcp
+    permanent: true
+    immediate: true
+    state: enabled
+  ignore_errors: true
+  when: ansible_os_family == "RedHat"
+
+- name: Open port 3306 via iptables (CentOS fallback)
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 3306
+    jump: ACCEPT
+  ignore_errors: true
+  when: ansible_os_family == "RedHat"
+
+- name: Open port 3306 via ufw (Ubuntu)
+  ufw:
+    rule: allow
+    port: 3306
+    proto: tcp
+  ignore_errors: true
+  when: ansible_distribution == "Ubuntu"
+
+- name: Create WordPress database
+  mysql_db:
+    name: wordpress
+    encoding: utf8mb4
+    collation: utf8mb4_unicode_ci
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Create WordPress user (доступ с любого IP)
+  mysql_user:
+    name: wordpress
+    password: "codeby"
+    host: "%"
+    priv: "wordpress.*:ALL"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"

@@ -1,0 +1,13 @@
+<VirtualHost *:{{ apache_port }}>
+    ServerName {{ wordpress_domain }}
+    DocumentRoot /var/www/wordpress
+
+    <Directory /var/www/wordpress>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/wordpress_error.log
+    CustomLog ${APACHE_LOG_DIR}/wordpress_access.log combined
+</VirtualHost>
+IncludeOptional sites-enabled/*.conf
