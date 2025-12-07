@@ -1,0 +1,2 @@
+apache_port: "{{ 8080 if ansible_distribution == 'Ubuntu' else 80 }}"
+wordpress_domain: wordpress.local
