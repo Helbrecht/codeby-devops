@@ -1,0 +1,27 @@
+FROM debian:11
+
+RUN sed -i 's/deb.debian.org/mirror.yandex.ru/g' /etc/apt/sources.list && \
+    sed -i 's/security.debian.org/mirror.yandex.ru/g' /etc/apt/sources.list
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends nginx && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/www
+
+RUN echo "<h1>CODEBY, hello from Debian Nginx!</h1>" > /opt/www/index.html
+
+RUN echo "server { \
+    listen 80 default_server; \
+    listen [::]:80 default_server; \
+    root /opt/www; \
+    index index.html; \
+    server_name _; \
+    location / { \
+        try_files \$uri \$uri/ =404; \
+    } \
+}" > /etc/nginx/sites-available/default
+
+EXPOSE 80
+
+ENTRYPOINT ["nginx", "-g", "daemon off;"]
