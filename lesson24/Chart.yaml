@@ -1,0 +1,9 @@
+apiVersion: v2
+name: wordpress
+description: Helm Chart
+version: 1.0.0
+type: application
+keywords:
+  - wordpress
+  - mysql
+  - helm
