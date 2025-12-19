@@ -1,0 +1,41 @@
+namespace: dev
+
+mysql:
+  image: mysql:8.0
+  replicas: 1
+  pvSize: 5Gi
+  storageClass: local-storage
+  config:
+    maxConnections: 200
+  secret:
+    rootPassword: 1
+    dbName: wordpress
+    user: codeby
+    password: 1
+
+wordpress:
+  image: wordpress:6.6-php8.3-apache
+  replicas: 1
+  pvSize: 10Gi
+  storageClass: local-storage
+  config:
+    tablePrefix: wp_
+  secret:
+    dbHost: mysql.dev.svc.cluster.local
+    dbUser: codeby
+    dbPassword: 1
+    dbName: wordpress
+
+hpa:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 5
+  cpuUtilization: 50
+
+ingress:
+  enabled: true
+  className: nginx
+  host: wordpress.local
+  tls:
+    enabled: false
+    secretName: wordpress-tls

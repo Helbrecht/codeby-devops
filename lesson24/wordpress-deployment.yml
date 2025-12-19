@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.wordpress.replicas }}
+  selector:
+    matchLabels:
+      app: wordpress
+  template:
+    metadata:
+      labels:
+        app: wordpress
+    spec:
+      containers:
+      - name: wordpress
+        image: {{ .Values.wordpress.image }}
+        envFrom:
+          - secretRef:
+              name: wordpress-secret
+        volumeMounts:
+          - name: wp-data
+            mountPath: /var/www/html
+          - name: config
+            mountPath: /var/www/html/wp-config.php
+            subPath: wp-config.php
+        ports:
+          - containerPort: 80
+      volumes:
+        - name: config
+          configMap:
+            name: wordpress-config
